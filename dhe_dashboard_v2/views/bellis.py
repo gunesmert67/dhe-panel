@@ -1,0 +1,380 @@
+"""
+DHE Dashboard - Bellis Sayfası
+==============================
+Bellis makine veritabanı görselleştirmesi.
+Türkiye haritası, KPI kartları ve detay tablosu.
+"""
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+from typing import Dict
+
+from core.bellis_loader import load_bellis_data, load_sehirler_data, prepare_bellis_summary
+from config.city_coordinates import SERVICE_PROVIDER_COLORS, TURKEY_REGIONS
+from components.cards import render_kpi_card
+
+
+def render_bellis_page():
+    """Ana Bellis sayfası render fonksiyonu."""
+    
+    # Veri Yükleme
+    df_bellis = load_bellis_data()
+    df_sehirler = load_sehirler_data()
+    
+    if df_bellis.empty:
+        st.error("Bellis verileri yüklenemedi. Lütfen data/Bellis.xlsx dosyasını kontrol edin.")
+        return
+    
+    # Veri Zenginleştirme
+    df_enriched, kpis = prepare_bellis_summary(df_bellis, df_sehirler)
+    
+    # === TAB STYLE INJECTION ===
+    st.markdown("""
+        <style>
+        /* TAB STYLING */
+        div[data-baseweb="tab-list"] {
+            gap: 8px;
+            background-color: transparent;
+            padding: 10px 0;
+            border-bottom: none;
+        }
+
+        button[data-baseweb="tab"] {
+            background-color: var(--bg-secondary, #F3F4F6) !important;
+            border: 1px solid var(--border-color, #E5E7EB) !important;
+            border-radius: 8px !important;
+            padding: 0.75rem 1.5rem !important;
+            color: var(--text-secondary, #6B7280) !important;
+            font-weight: 600 !important;
+            transition: all 0.2s ease-in-out !important;
+            flex: 1;
+        }
+
+        button[data-baseweb="tab"]:hover {
+            background-color: var(--card-bg, #FFFFFF) !important;
+            border-color: #C4121F !important;
+            color: #C4121F !important;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            transform: translateY(-2px);
+        }
+
+        button[data-baseweb="tab"][aria-selected="true"] {
+            background-color: #C4121F !important;
+            color: white !important;
+            border-color: #C4121F !important;
+            box-shadow: 0 4px 6px -1px rgba(196, 18, 31, 0.3);
+        }
+        
+        div[data-baseweb="tab-highlight"] {
+            display: none;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    
+    # === TAB YAPISI ===
+    tab_veriler, tab_liste = st.tabs(["BELLIS MAKINE VERILERI", "DETAYLI MAKINE LISTESI"])
+    
+    # === TAB 1: VERİ GÖRSELLEŞTİRME ===
+    with tab_veriler:
+        st.markdown("<div style='height: 1rem'></div>", unsafe_allow_html=True)
+        
+        # =========================================================================
+        # KPI KARTLARI
+        # =========================================================================
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.markdown(render_kpi_card(
+                title="Toplam Makine",
+                value=f"{kpis.get('total', 0):,}",
+                sub="Bellis veritabanı",
+                icon_key="settings",
+                color="#1E293B"
+            ), unsafe_allow_html=True)
+        
+        with col2:
+            st.markdown(render_kpi_card(
+                title="DHE Servisinde",
+                value=f"{kpis.get('dhe', 0):,}",
+                sub="Bizim müşterilerimiz",
+                icon_key="wrench",
+                color="#C4121F"
+            ), unsafe_allow_html=True)
+        
+        with col3:
+            market_share = kpis.get('market_share', 0)
+            st.markdown(render_kpi_card(
+                title="Pazar Payımız",
+                value=f"%{market_share}",
+                sub="DHE / Toplam",
+                icon_key="chart",
+                color="#10B981"
+            ), unsafe_allow_html=True)
+        
+        with col4:
+            turkiye_count = df_enriched["Turkiye_Ici"].sum() if "Turkiye_Ici" in df_enriched.columns else 0
+            st.markdown(render_kpi_card(
+                title="Türkiye'de",
+                value=f"{turkiye_count:,}",
+                sub="Haritada gösterilen",
+                icon_key="truck",
+                color="#3B82F6"
+            ), unsafe_allow_html=True)
+        
+        st.markdown("<div style='height: 2rem'></div>", unsafe_allow_html=True)
+        
+        # =========================================================================
+        # TÜRKİYE HARİTASI (Tam Genişlik)
+        # =========================================================================
+        st.markdown("""
+        <div class="section-title">
+            TÜRKİYE HARİTASI
+        </div>
+        """, unsafe_allow_html=True)
+        
+        render_turkey_map(kpis.get("city_summary", pd.DataFrame()))
+        
+        st.markdown("<div style='height: 2rem'></div>", unsafe_allow_html=True)
+        
+        # =========================================================================
+        # BÖLGE DAĞILIMI VE SERVİS DAĞILIMI (Yan Yana)
+        # =========================================================================
+        col_region, col_service = st.columns(2)
+        
+        with col_region:
+            st.markdown("""
+            <div class="section-title">
+                BÖLGE DAĞILIMI
+            </div>
+            """, unsafe_allow_html=True)
+            
+            render_region_chart(df_enriched)
+        
+        with col_service:
+            st.markdown("""
+            <div class="section-title">
+                SERVİS DAĞILIMI
+            </div>
+            """, unsafe_allow_html=True)
+            
+            render_service_pie_chart(kpis.get("service_distribution", {}))
+    
+    # === TAB 2: DETAY TABLOSU ===
+    with tab_liste:
+        st.markdown("<div style='height: 1rem'></div>", unsafe_allow_html=True)
+        render_detail_table(df_enriched)
+
+
+def render_turkey_map(city_summary: pd.DataFrame):
+    """Türkiye haritası üzerinde şehir bazlı scatter map."""
+    
+    if city_summary.empty:
+        st.info("Harita için veri bulunamadı.")
+        return
+    
+    # Plotly Scatter Mapbox
+    fig = px.scatter_mapbox(
+        city_summary,
+        lat="Enlem",
+        lon="Boylam",
+        size="Toplam",
+        color="DHE_Oran",
+        hover_name="Sehir",
+        hover_data={
+            "Toplam": True,
+            "DHE": True,
+            "DHE_Oran": ":.1f",
+            "Enlem": False,
+            "Boylam": False
+        },
+        color_continuous_scale=[
+            [0, "#E5E7EB"],      # Gri (0% DHE)
+            [0.5, "#FCD34D"],    # Sarı (50% DHE)
+            [1, "#C4121F"]       # Kırmızı (100% DHE)
+        ],
+        size_max=40,
+        zoom=5,
+        center={"lat": 39.0, "lon": 35.0},
+        labels={
+            "Toplam": "Toplam Makine",
+            "DHE": "DHE Servisinde", 
+            "DHE_Oran": "DHE Oranı (%)"
+        }
+    )
+    
+    fig.update_layout(
+        mapbox_style="carto-positron",
+        margin={"r": 0, "t": 0, "l": 0, "b": 0},
+        height=450,
+        coloraxis_colorbar=dict(
+            title="DHE %",
+            ticksuffix="%"
+        )
+    )
+    
+    st.plotly_chart(fig, width='stretch')
+
+
+def render_service_pie_chart(service_dist: Dict):
+    """Servis sağlayıcı dağılımı pasta grafik."""
+    
+    if not service_dist:
+        st.info("Servis dağılımı verisi bulunamadı.")
+        return
+    
+    # Veriyi DataFrame'e çevir
+    df_pie = pd.DataFrame([
+        {"Servisci": k, "Adet": v} 
+        for k, v in service_dist.items()
+    ])
+    
+    # Renkleri eşleştir
+    colors = [SERVICE_PROVIDER_COLORS.get(s, "#9CA3B8") for s in df_pie["Servisci"]]
+    
+    fig = go.Figure(data=[go.Pie(
+        labels=df_pie["Servisci"],
+        values=df_pie["Adet"],
+        hole=0.4,
+        marker_colors=colors,
+        textposition='outside',
+        textinfo='label+percent',
+        hovertemplate="<b>%{label}</b><br>Makine: %{value}<br>Oran: %{percent}<extra></extra>"
+    )])
+    
+    fig.update_layout(
+        showlegend=False,
+        margin={"r": 20, "t": 20, "l": 20, "b": 20},
+        height=350,
+        annotations=[dict(
+            text=f"<b>{sum(service_dist.values())}</b><br>Makine",
+            x=0.5, y=0.5,
+            font_size=16,
+            showarrow=False
+        )]
+    )
+    
+    st.plotly_chart(fig, width='stretch')
+
+
+def render_region_chart(df: pd.DataFrame):
+    """Bölge bazlı yatay bar chart."""
+    
+    if df.empty or "Bolge_Ad" not in df.columns:
+        st.info("Bölge verisi bulunamadı.")
+        return
+    
+    # Bölge özeti
+    region_summary = df.groupby("Bolge_Ad").agg(
+        Toplam=("Musteri", "count"),
+        DHE=("Servisci", lambda x: (x == "DHE").sum())
+    ).reset_index()
+    
+    region_summary["Diger"] = region_summary["Toplam"] - region_summary["DHE"]
+    region_summary = region_summary.sort_values("Toplam", ascending=True)
+    
+    # Stacked horizontal bar
+    fig = go.Figure()
+    
+    # DHE ilk sırada (sol tarafta)
+    fig.add_trace(go.Bar(
+        y=region_summary["Bolge_Ad"],
+        x=region_summary["DHE"],
+        name="DHE",
+        orientation='h',
+        marker_color="#C4121F",
+        text=region_summary["DHE"],
+        textposition='inside',
+        textfont=dict(color='white')
+    ))
+    
+    # Diğer (sağ tarafta, sarı renk)
+    fig.add_trace(go.Bar(
+        y=region_summary["Bolge_Ad"],
+        x=region_summary["Diger"],
+        name="Diğer",
+        orientation='h',
+        marker_color="#F59E0B",  # Sarı/turuncu
+        text=region_summary["Diger"],
+        textposition='inside',
+        textfont=dict(color='white')
+    ))
+    
+    fig.update_layout(
+        barmode='stack',
+        height=350,
+        margin={"r": 20, "t": 30, "l": 20, "b": 20},
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="left",
+            x=0,
+            traceorder="normal"
+        ),
+        xaxis_title="Makine Sayısı",
+        yaxis_title=""
+    )
+    
+    st.plotly_chart(fig, width='stretch')
+
+
+def render_detail_table(df: pd.DataFrame):
+    """Filtrelenebilir detay tablosu."""
+    
+    if df.empty:
+        st.info("Tablo için veri bulunamadı.")
+        return
+    
+    # Filtreler
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        servisci_options = ["Tümü"] + sorted(df["Servisci"].unique().tolist())
+        selected_servisci = st.selectbox("Servisci", servisci_options, key="bellis_servisci")
+    
+    with col2:
+        bolge_options = ["Tümü"] + sorted(df["Bolge_Ad"].unique().tolist())
+        selected_bolge = st.selectbox("Bölge", bolge_options, key="bellis_bolge")
+    
+    with col3:
+        search_term = st.text_input("Müşteri Ara", key="bellis_search")
+    
+    # Filtreleme
+    df_filtered = df.copy()
+    
+    if selected_servisci != "Tümü":
+        df_filtered = df_filtered[df_filtered["Servisci"] == selected_servisci]
+    
+    if selected_bolge != "Tümü":
+        df_filtered = df_filtered[df_filtered["Bolge_Ad"] == selected_bolge]
+    
+    if search_term:
+        df_filtered = df_filtered[
+            df_filtered["Musteri"].str.contains(search_term, case=False, na=False)
+        ]
+    
+    # Görüntülenecek kolonlar
+    display_cols = ["Musteri", "Sehir", "Bolge_Ad", "Servisci", "Makine_Modeli", "Seri_No"]
+    display_cols = [c for c in display_cols if c in df_filtered.columns]
+    
+    # Kolon isimleri
+    column_config = {
+        "Musteri": st.column_config.TextColumn("Müşteri", width="large"),
+        "Sehir": st.column_config.TextColumn("Şehir", width="medium"),
+        "Bolge_Ad": st.column_config.TextColumn("Bölge", width="medium"),
+        "Servisci": st.column_config.TextColumn("Servisci", width="medium"),
+        "Makine_Modeli": st.column_config.TextColumn("Model", width="medium"),
+        "Seri_No": st.column_config.TextColumn("Seri No", width="medium"),
+    }
+    
+    st.dataframe(
+        df_filtered[display_cols],
+        width='stretch',
+        height=400,
+        column_config=column_config,
+        hide_index=True
+    )
+    
+    # Özet satırı
+    st.caption(f"Toplam {len(df_filtered)} kayıt gösteriliyor (filtrelenmiş)")
