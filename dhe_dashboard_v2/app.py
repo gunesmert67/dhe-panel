@@ -16,6 +16,46 @@ import pandas as pd
 import logging
 import os
 
+import streamlit as st
+import os
+
+# --- GIZLI DOSYAYI OLUSTURMA (EN BASA GELECEK) ---
+# DİKKAT: Bu kod veri çekme işleminden önce çalışmalı!
+
+# 1. Ana dizinde 'data' klasörü yoksa oluştur
+if not os.path.exists("data"):
+    os.makedirs("data")
+
+# 2. Eğer kod bir alt klasörde çalışıyorsa oraya da 'data' aç (Garanti olsun)
+if not os.path.exists("dhe_dashboard_v2/data"):
+    try:
+        os.makedirs("dhe_dashboard_v2/data")
+    except:
+        pass # Zaten varsa ya da oluşturamazsa geç
+
+# 3. Secrets içindeki bilgiyi dosyaya yaz
+if "dosyalar" in st.secrets and "gcp_json" in st.secrets["dosyalar"]:
+    # Dosya içeriğini al
+    json_icerik = st.secrets["dosyalar"]["gcp_json"]
+    
+    # Ana dizine yaz
+    with open("data/credentials.json", "w") as f:
+        f.write(json_icerik)
+    
+    # Olur da kod alt klasörden bakıyorsa diye oraya da yaz
+    try:
+        with open("dhe_dashboard_v2/data/credentials.json", "w") as f:
+            f.write(json_icerik)
+    except:
+        pass
+# -------------------------------------------------
+
+# BURADAN SONRA SENİN ESKİ KODLARIN DEVAM ETSİN...
+# import ...
+# ...
+
+
+
 # Core Imports
 from core.data_loader import load_data, prepare_crm_data, load_saha_data, load_holidays
 from core.bellis_loader import load_bellis_data, load_sehirler_data
@@ -195,3 +235,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
