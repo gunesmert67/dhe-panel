@@ -1296,3 +1296,33 @@ ValueError: Duplicate column names found: ['Musteri', 'Sehir', 'Bolge_Ad', 'Serv
 2026-01-15 17:56:00,333 - core.bellis_loader - INFO - [Bellis] Excel: 162 makine (142 TR)
 2026-01-15 17:56:07,880 - core.gsheets - INFO - [GSheets] sehirler: 81 satýr
 2026-01-15 17:56:07,882 - core.bellis_loader - INFO - [GSheets] sehirler: 81 satýr
+2026-01-16 12:55:06,605 - core.gsheets - INFO - [GSheets] teklif: 23748 satýr
+2026-01-16 12:55:07,414 - core.gsheets - INFO - [GSheets] Tatiller: 52 satýr
+2026-01-16 12:55:07,760 - core.gsheets - INFO - [GSheets] müsteri: 5824 satýr
+2026-01-16 12:55:07,927 - core.gsheets - INFO - [GSheets] siparis: 11474 satýr
+2026-01-16 12:55:08,025 - core.gsheets - INFO - [GSheets] ürün: 10226 satýr
+2026-01-16 12:55:08,573 - core.data_loader - INFO - [GSheets] kurlar: 109 satýr
+2026-01-16 12:55:09,197 - core.data_loader - INFO - [DHE_Data] Tüm veriler yüklendi
+2026-01-16 12:55:18,486 - core.data_loader - INFO - [Saha] 2024: 4562 satýr
+2026-01-16 12:55:20,691 - core.data_loader - INFO - [Saha] 2025: 3670 satýr
+2026-01-16 12:55:22,568 - core.data_loader - INFO - [Saha] 2026: 810 satýr
+2026-01-16 12:55:22,739 - core.data_loader - INFO - [Saha] Toplam: 4851 satýr
+2026-01-16 12:55:24,324 - core.gsheets - INFO - [GSheets] Personel: 21 satýr
+2026-01-16 12:55:25,021 - core.bellis_loader - INFO - [Bellis] Excel: 162 makine (142 TR)
+2026-01-16 12:55:30,101 - core.gsheets - INFO - [GSheets] sehirler: 81 satýr
+2026-01-16 12:55:30,102 - core.bellis_loader - INFO - [GSheets] sehirler: 81 satýr
+2026-01-16 13:00:12,215 - core.gsheets - INFO - [GSheets] teklif: 23748 satýr
+2026-01-16 13:00:14,685 - core.gsheets - INFO - [GSheets] Tatiller: 52 satýr
+2026-01-16 13:00:15,078 - core.gsheets - INFO - [GSheets] ürün: 10226 satýr
+2026-01-16 13:00:15,813 - core.gsheets - INFO - [GSheets] siparis: 11474 satýr
+2026-01-16 13:00:15,814 - core.gsheets - INFO - [GSheets] müsteri: 5824 satýr
+2026-01-16 13:00:16,481 - core.data_loader - INFO - [GSheets] kurlar: 109 satýr
+2026-01-16 13:00:18,614 - core.data_loader - INFO - [DHE_Data] Tüm veriler yüklendi
+2026-01-16 13:00:28,296 - core.data_loader - INFO - [Saha] 2024: 4562 satýr
+2026-01-16 13:00:30,242 - core.data_loader - INFO - [Saha] 2025: 3670 satýr
+2026-01-16 13:00:31,605 - core.data_loader - INFO - [Saha] 2026: 810 satýr
+2026-01-16 13:00:31,767 - core.data_loader - INFO - [Saha] Toplam: 4851 satýr
+2026-01-16 13:00:33,312 - core.gsheets - INFO - [GSheets] Personel: 21 satýr
+2026-01-16 13:00:33,664 - core.bellis_loader - INFO - [Bellis] Excel: 162 makine (142 TR)
+2026-01-16 13:00:38,754 - core.gsheets - INFO - [GSheets] sehirler: 81 satýr
+2026-01-16 13:00:38,755 - core.bellis_loader - INFO - [GSheets] sehirler: 81 satýr

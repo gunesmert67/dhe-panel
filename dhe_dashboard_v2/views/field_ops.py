@@ -261,7 +261,59 @@ def render_saha(holidays=None):
                 atolye_gun += t_atolye
     
         donem_text = f"{secili_ay} {secili_yil}" if secili_ay != "Tümü" else f"{secili_yil} Yılı"
+        
+        # Kapasite ve Verimlilik KPI'ları
+        toplam_kapasite = 0
+        
+        # Kapasite Hesaplama Loop'u (KPI Kartları İçin)
+        teks_to_calc = [secili_teknisyen] if secili_teknisyen != "Tümü" else list(saha_listesi)
+        
+        for tek in teks_to_calc:
+             # Efektif Gün
+            tech_is_gunleri = is_gunleri
+            if not df_personel.empty and 'Ad_Soyad' in df_personel.columns:
+                    p_row = df_personel[df_personel['Ad_Soyad'].str.upper() == tek]
+                    if not p_row.empty and 'Ise_Giris' in p_row.columns:
+                        start_date = p_row.iloc[0]['Ise_Giris']
+                        end_date = p_row.iloc[0]['Isten_Cikis'] if 'Isten_Cikis' in p_row.columns else None
+                        tech_is_gunleri = calculate_effective_workdays(secili_yil, secili_ay_no, start_date, end_date=end_date, holidays=holidays)
+            
+            toplam_kapasite += tech_is_gunleri
+
+        # Yıllık İzin İndirimi Logic (Sadece Yıl = Tümü veya Yıl bazlı bakılıyorsa mantıklı)
+        # Kullanıcı "kişi başı 14 gün düşelim" dedi. Bu aylık bakışta çok agresif olur.
+        # Sadece yıllık bakışta (Ay = Tümü) 14, aksi takdirde 0 düşelim.
+        # Veya orantısal: 14/12 * ay sayısı gibi de olabilir ama basitlik adına Yıllık -> 14.
+        
+        deduction_per_person = 14 if secili_ay == "Tümü" else 0
+        total_deduction = len(teks_to_calc) * deduction_per_person
+        
+        net_kapasite = max(0, toplam_kapasite - total_deduction)
+        
+        # Verimlilik artık Net Kapasite'ye göre
+        verimlilik_orani = (sahada_gun / net_kapasite * 100) if net_kapasite > 0 else 0
+        
+        # 4. Metrik: Net - Sahada
+        kalan_kapasite = net_kapasite - sahada_gun
+        
+        # Ekstra KPI Kartları (Mevcutların Altına/Yanına)
+        # Önce mevcutları göster
         render_period_stats(sahada_gun, atolye_gun, izin_gun, donem_text)
+        
+        spacer(40)
+        # Yeni Kapasite ve Verimlilik Kartları (4'lü Yapı)
+        kc1, kc2, kc3, kc4 = st.columns(4, gap="medium")
+        from components.cards import render_kpi_card # Ensure import
+        
+        with kc1:
+             st.markdown(render_kpi_card("İŞ GÜNÜ GÜCÜ", f"{toplam_kapasite:,}", "Brüt İş Günü Gücü", "calendar", "#6B7280"), unsafe_allow_html=True)
+        with kc2:
+             sub_text = f"-{total_deduction} Gün Yıllık İzin" if total_deduction > 0 else "İzin Dahil"
+             st.markdown(render_kpi_card("NET İŞ GÜNÜ GÜCÜ", f"{net_kapasite:,}", sub_text, "briefcase", "#3B82F6"), unsafe_allow_html=True)
+        with kc3:
+             st.markdown(render_kpi_card("VERİMLİLİK", f"%{verimlilik_orani:.1f}", "Net İş Günü Gücüne Oran", "activity", "#8B5CF6"), unsafe_allow_html=True)
+        with kc4:
+             st.markdown(render_kpi_card("KALAN GÜN", f"{kalan_kapasite:,}", "Net - Sahada", "zap", "#F59E0B"), unsafe_allow_html=True)
         
         spacer(30)
         

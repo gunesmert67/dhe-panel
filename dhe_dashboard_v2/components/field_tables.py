@@ -63,7 +63,8 @@ def render_technician_performance_table(df, ana_ekip, df_personel, secili_yil, s
         
         row_data = {
             "Teknisyen": tek,
-            "Toplam": aktif,
+            "Toplam İş Günü": aktif,
+            "Kapasite": tech_is_gunleri
         }
         
         # İşlem türleri
@@ -92,24 +93,36 @@ def render_technician_performance_table(df, ana_ekip, df_personel, secili_yil, s
     
     df_perf = pd.DataFrame(perf_data)
     if not df_perf.empty:
-        target_cols = ["Teknisyen", "Toplam", "Bakım", "Arıza", "Devreye Alma", "Diğer", "Atölye", "İzin"]
+        # Kapasite (İş Günü Gücü) Sütunu
+        df_perf['İş Günü Gücü'] = df_perf['Teknisyen'].map({d['Teknisyen']: d.get('Kapasite', 0) for d in perf_data})
+        
+        # Verimlilik %
+        df_perf['Verimlilik %'] = df_perf.apply(lambda x: round((x['Toplam İş Günü'] / x['İş Günü Gücü'] * 100), 1) if x['İş Günü Gücü'] > 0 else 0, axis=1)
+
+        target_cols = ["Teknisyen", "İş Günü Gücü", "Toplam İş Günü", "Verimlilik %", "Bakım", "Arıza", "Devreye Alma", "Diğer", "Atölye", "İzin"]
         for col in target_cols:
             if col not in df_perf.columns: df_perf[col] = 0
         
-        df_perf = df_perf[target_cols].fillna(0).astype({col: int for col in target_cols if col != "Teknisyen"})
-        df_perf = df_perf.sort_values("Toplam", ascending=False)
+        # Sütun tiplerini ayarla (Verimlilik float kalmalı)
+        int_cols = [c for c in target_cols if c not in ["Teknisyen", "Verimlilik %"]]
+        df_perf[int_cols] = df_perf[int_cols].fillna(0).astype(int)
+        
+        df_perf = df_perf[target_cols].sort_values("Toplam İş Günü", ascending=False)
+        
+        # Formatlama: Verimlilik sütununu yüzdelik gösterim için string'e çevir
+        df_perf['Verimlilik %'] = df_perf['Verimlilik %'].apply(lambda x: f"%{x}")
         
         height = (len(df_perf) + 1) * 35 + 3
         st.dataframe(df_perf, width=1000, hide_index=True, height=int(height))
 
 
 def render_other_workers_table(df, diger_calisanlar):
-    """Diğer çalışanlar tablosunu render eder."""
-    # Eğer diğer çalışan listesi boşsa bile başlığı göster ve altına not düş
-    section_title("DİĞER ÇALIŞANLAR", margin_top="1rem", show_border=False)
+    """Diğer çalışanlar (Eski Çalışanlar) tablosunu render eder."""
+    # Başlık güncellemesi
+    section_title("ESKİ ÇALIŞANLAR", margin_top="1rem", show_border=False)
 
     if not diger_calisanlar:
-        st.info("Bugün farklı bir departmandan sahaya çıkan kimse yok.")
+        st.info("Seçilen dönemde eski teknisyen yok.")
         return
     
     diger_data = []
@@ -127,7 +140,7 @@ def render_other_workers_table(df, diger_calisanlar):
         else:
             aktif = len(tek_df[tek_df['Durum'] == 'AKTİF'])
         
-        row_data = {"Teknisyen": tek, "Toplam": aktif}
+        row_data = {"Teknisyen": tek, "Toplam İş Günü": aktif}
         
         bakim = 0; ariza = 0; devreye_alma = 0; diger = 0
         if 'İşlem' in tek_df.columns:
@@ -142,20 +155,22 @@ def render_other_workers_table(df, diger_calisanlar):
         row_data["Arıza"] = ariza
         row_data["Devreye Alma"] = devreye_alma
         row_data["Diğer"] = diger
-        row_data["Atölye"] = 0
-        row_data["İzin"] = 0
+        # Atölye ve İzin kaldırıldı
 
         if aktif > 0:
             diger_data.append(row_data)
     
     df_diger = pd.DataFrame(diger_data)
     if not df_diger.empty:
-        target_cols = ["Teknisyen", "Toplam", "Bakım", "Arıza", "Devreye Alma", "Diğer", "Atölye", "İzin"]
+        # Atölye ve İzin hedef sütunlardan çıkarıldı
+        target_cols = ["Teknisyen", "Toplam İş Günü", "Bakım", "Arıza", "Devreye Alma", "Diğer"]
         for col in target_cols:
              if col not in df_diger.columns: df_diger[col] = 0
         
         df_diger = df_diger[target_cols].fillna(0).astype({col: int for col in target_cols if col != "Teknisyen"})
-        df_diger = df_diger.sort_values("Toplam", ascending=False)
+        df_diger = df_diger.sort_values("Toplam İş Günü", ascending=False)
         
         height = (len(df_diger) + 1) * 35 + 3
         st.dataframe(df_diger, width=1000, hide_index=True, height=int(height))
+    else:
+        st.info("Seçilen dönemde eski teknisyen yok.")
